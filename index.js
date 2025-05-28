@@ -1,38 +1,30 @@
-
 const express = require("express");
 const Web3 = require("web3");
 require("dotenv").config();
 
 const app = express();
+const PORT = process.env.PORT || 3000;
+
 app.use(express.json());
 
+const PRIVATE_KEY = process.env.PRIVATE_KEY;
 const web3 = new Web3("https://bsc-dataseed.binance.org/");
-const gasWallet = web3.eth.accounts.privateKeyToAccount(process.env.PRIVATE_KEY);
-web3.eth.accounts.wallet.add(gasWallet);
-
-const BNB_AMOUNT = "0.001";
+const sender = web3.eth.accounts.privateKeyToAccount(PRIVATE_KEY);
+web3.eth.accounts.wallet.add(sender);
 
 app.post("/send-gas", async (req, res) => {
-  const to = req.body.to;
-
-  if (!web3.utils.isAddress(to)) {
-    return res.status(400).json({ error: "Invalid address" });
-  }
-
   try {
+    const to = req.body.to;
     const tx = await web3.eth.sendTransaction({
-      from: gasWallet.address,
+      from: sender.address,
       to,
-      value: web3.utils.toWei(BNB_AMOUNT, "ether"),
+      value: web3.utils.toWei("0.0001", "ether"),
       gas: 21000,
     });
-
     res.json({ success: true, txHash: tx.transactionHash });
   } catch (err) {
-    console.error("Send BNB failed:", err);
-    res.status(500).json({ error: "Failed to send BNB" });
+    res.status(500).json({ success: false, error: err.message });
   }
 });
 
-const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log(`🚀 Gas bot running on port ${PORT}`));
+app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
