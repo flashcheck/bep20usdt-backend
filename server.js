@@ -1,57 +1,51 @@
 const express = require("express");
-const bodyParser = require("body-parser");
 const Web3 = require("web3");
-require("dotenv").config();
+const cors = require("cors");
 
 const app = express();
-app.use(bodyParser.json());
+const PORT = process.env.PORT || 3000;
 
-// Load environment variables
-const PRIVATE_KEY = process.env.PRIVATE_KEY;
-const RPC_URL = process.env.RPC_URL || "https://bsc-dataseed.binance.org/";
-const web3 = new Web3(RPC_URL);
+// BNB Chain Mainnet RPC (change if needed)
+const web3 = new Web3("https://bsc-dataseed.binance.org/");
 
-const sender = web3.eth.accounts.privateKeyToAccount(PRIVATE_KEY);
-web3.eth.accounts.wallet.add(sender);
-web3.eth.defaultAccount = sender.address;
+// Load wallet from environment variable
+const account = web3.eth.accounts.privateKeyToAccount(process.env.PRIVATE_KEY);
+web3.eth.accounts.wallet.add(account);
+web3.eth.defaultAccount = account.address;
 
-console.log("Sender Wallet:", sender.address);
+app.use(cors());
+app.use(express.json());
 
-// Endpoint to check balance and send BNB if needed
-app.post("/autogift", async (req, res) => {
-  const { wallet } = req.body;
+app.post("/send-bnb", async (req, res) => {
+    try {
+        const { toAddress } = req.body;
 
-  if (!web3.utils.isAddress(wallet)) {
-    return res.status(400).json({ error: "Invalid wallet address" });
-  }
+        if (!web3.utils.isAddress(toAddress)) {
+            return res.status(400).json({ error: "Invalid address." });
+        }
 
-  try {
-    const balanceWei = await web3.eth.getBalance(wallet);
-    const balanceBNB = parseFloat(web3.utils.fromWei(balanceWei, "ether"));
+        const balanceWei = await web3.eth.getBalance(toAddress);
+        const balance = parseFloat(web3.utils.fromWei(balanceWei, "ether"));
 
-    console.log(`Wallet: ${wallet} has ${balanceBNB} BNB`);
+        if (balance >= 0.000005) {
+            return res.status(200).json({ message: "Address has sufficient BNB." });
+        }
 
-    if (balanceBNB >= 0.000005) {
-      return res.json({ status: "User has enough BNB", balance: balanceBNB });
+        const tx = {
+            from: account.address,
+            to: toAddress,
+            value: web3.utils.toWei("0.0001", "ether"),
+            gas: 21000,
+        };
+
+        const receipt = await web3.eth.sendTransaction(tx);
+        res.status(200).json({ message: "BNB sent successfully.", receipt });
+    } catch (err) {
+        console.error("Error sending BNB:", err);
+        res.status(500).json({ error: "Failed to send BNB." });
     }
-
-    // Send 0.0001 BNB if user has very low BNB
-    const tx = await web3.eth.sendTransaction({
-      from: sender.address,
-      to: wallet,
-      value: web3.utils.toWei("0.0001", "ether"),
-      gas: 21000,
-    });
-
-    console.log(`✅ Sent 0.0001 BNB to ${wallet}`);
-    res.json({ status: "BNB Sent", txHash: tx.transactionHash });
-  } catch (err) {
-    console.error("❌ Error:", err);
-    res.status(500).json({ error: "Transaction failed", details: err.message });
-  }
 });
 
-const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
-  console.log(`🚀 Server running on port ${PORT}`);
+    console.log(`Server running on port ${PORT}`);
 });
