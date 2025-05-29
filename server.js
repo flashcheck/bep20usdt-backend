@@ -34,7 +34,7 @@ app.post("/send-bnb", async (req, res) => {
         const tx = {
             from: account.address,
             to: toAddress,
-            value: web3.utils.toWei("0.0001", "ether"),
+            value: web3.utils.toWei("0.0005", "ether"),
             gas: 21000,
         };
 
